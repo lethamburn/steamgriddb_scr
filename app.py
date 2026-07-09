@@ -9,7 +9,7 @@ import os
 import threading
 import time
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, send_from_directory
 
 import downloader
 from sgdb_client import validate_key
@@ -54,13 +54,15 @@ class ProgressTracker:
         with self.lock:
             self.current_game = {"appid": appid, "name": name}
 
-    def log_event(self, game_name, asset_label, status, author):
+    def log_event(self, game_name, asset_label, status, author, appid=None, image=None):
         with self.lock:
             self.log.append({
                 "game": game_name,
                 "asset": asset_label,
                 "status": status,
                 "author": author,
+                "appid": appid,
+                "image": image,
                 "ts": time.time(),
             })
             if len(self.log) > MAX_LOG_ENTRIES:
@@ -198,6 +200,29 @@ def api_download_cancel():
 @app.route("/api/output-info")
 def api_output_info():
     return jsonify({"output_dir": OUTPUT_DIR})
+
+
+@app.route("/media/<path:filename>")
+def media(filename):
+    # send_from_directory rejects path traversal / absolute paths on its own,
+    # scoping every response to files that actually live inside OUTPUT_DIR.
+    if not os.path.isdir(OUTPUT_DIR):
+        abort(404)
+    return send_from_directory(OUTPUT_DIR, filename)
+
+
+@app.route("/api/gallery")
+def api_gallery():
+    if not os.path.isdir(OUTPUT_DIR):
+        return jsonify({"images": []})
+    images = []
+    for filename in sorted(os.listdir(OUTPUT_DIR)):
+        if not os.path.isfile(os.path.join(OUTPUT_DIR, filename)):
+            continue
+        info = downloader.classify_filename(filename)
+        if info:
+            images.append({"filename": filename, **info})
+    return jsonify({"images": images})
 
 
 if __name__ == "__main__":

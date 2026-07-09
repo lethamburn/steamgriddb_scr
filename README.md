@@ -58,6 +58,11 @@ La interfaz es una única página con cinco secciones, en este orden:
    y si saltar los archivos ya existentes.
 5. **Generar carpeta** — botón de inicio, barra de progreso, log en vivo
    (juego actual, qué autor se usó por cada asset) y resumen final.
+6. **Galería** — previsualización en miniatura de las imágenes de
+   `grid_output/`. Se rellena en vivo mientras avanza la descarga (con
+   badge de si vino de un autor preferido o de fallback) y también carga lo
+   que ya hubiera de ejecuciones anteriores al abrir la página. Clic en una
+   miniatura para verla a tamaño completo.
 
 ## Instalación y ejecución
 

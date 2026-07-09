@@ -10,6 +10,8 @@
     games: [],
     polling: null,
     dragSrcIndex: null,
+    gallery: new Map(), // filename -> { appid, label, game, author, status }
+    galleryNodes: new Map(), // filename -> DOM element
   };
 
   function safeParseAuthors(raw) {
@@ -29,6 +31,7 @@
     bindEvents();
     refreshOutputInfo();
     updateStartButtonState();
+    loadGallery();
   }
 
   function bindEvents() {
@@ -213,6 +216,7 @@
       }
       renderGamesPreview();
       updateStartButtonState();
+      refreshGalleryNames();
     } catch (e) {
       setStatus("detect-status", "No se pudo contactar con el servidor local.", "error");
     } finally {
@@ -329,6 +333,7 @@
         if (data.error) {
           el("progress-text").textContent = "Error: " + data.error;
         }
+        loadGallery(); // reconcile with disk in case the log window trimmed old entries
       }
     } catch (e) {
       // Transient network hiccup: keep polling.
@@ -343,6 +348,7 @@
       el("current-game").textContent = "Procesando: " + data.current_game.name;
     }
     renderLog(data.log || []);
+    upsertGalleryFromLog(data.log || []);
   }
 
   const STATUS_LABELS = {
@@ -398,6 +404,112 @@
       ul.appendChild(li);
     }
     box.appendChild(ul);
+  }
+
+  // --- Gallery ---------------------------------------------------------
+
+  function gameNameFor(appid) {
+    const game = state.games.find((g) => g.appid === appid);
+    return game ? game.name : appid ? `AppID ${appid}` : "";
+  }
+
+  function ensureGalleryTile(filename) {
+    let tile = state.galleryNodes.get(filename);
+    if (tile) return tile;
+
+    tile = document.createElement("a");
+    tile.target = "_blank";
+    tile.rel = "noopener";
+    tile.href = "/media/" + encodeURIComponent(filename);
+
+    const img = document.createElement("img");
+    img.loading = "lazy";
+    img.src = "/media/" + encodeURIComponent(filename);
+    tile.appendChild(img);
+
+    const caption = document.createElement("div");
+    caption.className = "gallery-caption";
+    const gameLine = document.createElement("div");
+    gameLine.className = "gallery-game";
+    const metaLine = document.createElement("div");
+    metaLine.className = "gallery-meta";
+    caption.appendChild(gameLine);
+    caption.appendChild(metaLine);
+    tile.appendChild(caption);
+
+    el("gallery-grid").appendChild(tile);
+    state.galleryNodes.set(filename, tile);
+    return tile;
+  }
+
+  const GALLERY_STATUS_LABELS = {
+    preferred: "autor preferido",
+    fallback: "fallback",
+    skipped_existing: "ya existía",
+    existing: "en disco",
+  };
+
+  function updateGalleryTile(filename) {
+    const info = state.gallery.get(filename);
+    if (!info) return;
+    const tile = ensureGalleryTile(filename);
+    tile.className = "gallery-tile gallery-" + (info.status || "existing");
+    tile.querySelector(".gallery-game").textContent = info.game || gameNameFor(info.appid);
+
+    let metaText = info.label || "";
+    const statusLabel = GALLERY_STATUS_LABELS[info.status];
+    if (statusLabel) metaText += ` · ${statusLabel}`;
+    if (info.author) metaText += ` (${info.author})`;
+    tile.querySelector(".gallery-meta").textContent = metaText;
+
+    el("gallery-empty").hidden = state.gallery.size > 0;
+  }
+
+  function upsertGalleryFromLog(log) {
+    for (const entry of log) {
+      if (!entry.image) continue;
+      const previous = state.gallery.get(entry.image);
+      if (previous && previous.status === entry.status && previous.author === entry.author) continue;
+      state.gallery.set(entry.image, {
+        appid: entry.appid,
+        label: entry.asset,
+        game: entry.game || gameNameFor(entry.appid),
+        author: entry.author,
+        status: entry.status,
+      });
+      updateGalleryTile(entry.image);
+    }
+  }
+
+  function refreshGalleryNames() {
+    for (const [filename, info] of state.gallery.entries()) {
+      const resolved = gameNameFor(info.appid);
+      if (resolved && resolved !== info.game) {
+        info.game = resolved;
+        updateGalleryTile(filename);
+      }
+    }
+  }
+
+  async function loadGallery() {
+    try {
+      const res = await fetch("/api/gallery");
+      const data = await res.json();
+      for (const img of data.images || []) {
+        if (state.gallery.has(img.filename)) continue;
+        state.gallery.set(img.filename, {
+          appid: img.appid,
+          label: img.label,
+          game: gameNameFor(img.appid),
+          author: null,
+          status: "existing",
+        });
+        updateGalleryTile(img.filename);
+      }
+      el("gallery-empty").hidden = state.gallery.size > 0;
+    } catch (e) {
+      // Ignore: gallery is informational only.
+    }
   }
 
   async function refreshOutputInfo() {

@@ -4,6 +4,7 @@ priority list, then saves it to grid_output/ using Steam's expected naming.
 
 import glob
 import os
+import re
 import time
 
 import requests
@@ -55,6 +56,30 @@ ASSET_TYPES = {
 }
 
 ASSET_ORDER = ["grid_vertical", "grid_horizontal", "hero", "logo", "icon"]
+
+# Suffix -> asset type key, used to classify existing files in grid_output/
+# for the gallery (e.g. "270230p.png" -> grid_vertical, "270230.png" -> grid_horizontal).
+SUFFIX_TO_ASSET_KEY = {cfg["suffix"]: key for key, cfg in ASSET_TYPES.items()}
+_GALLERY_FILENAME_RE = re.compile(r"^(?P<appid>\d+)(?P<suffix>p|_hero|_logo|_icon)?$")
+
+
+def classify_filename(filename):
+    """Identify (appid, asset type) for a file in grid_output/, or None."""
+    name, ext = os.path.splitext(filename)
+    if not ext:
+        return None
+    match = _GALLERY_FILENAME_RE.match(name)
+    if not match:
+        return None
+    suffix = match.group("suffix") or ""
+    asset_key = SUFFIX_TO_ASSET_KEY.get(suffix)
+    if not asset_key:
+        return None
+    return {
+        "appid": match.group("appid"),
+        "asset_type": asset_key,
+        "label": ASSET_TYPES[asset_key]["label"],
+    }
 
 
 def _api_get(session, url, api_key, params=None):
@@ -178,7 +203,7 @@ def run_download(games, api_key, preferred_authors, asset_type_keys, style,
 
         game_id = find_sgdb_game_id(session, api_key, appid)
         if not game_id:
-            progress.log_event(name, None, "no_match", None)
+            progress.log_event(name, None, "no_match", None, appid=appid)
             stats["skipped_no_match"] += 1
             stats["processed"] += 1
             progress.increment_processed()
@@ -189,20 +214,24 @@ def run_download(games, api_key, preferred_authors, asset_type_keys, style,
                 break
             cfg = ASSET_TYPES[asset_key]
 
-            if skip_existing and _find_existing(output_dir, appid, cfg["suffix"]):
-                progress.log_event(name, cfg["label"], "skipped_existing", None)
+            existing = _find_existing(output_dir, appid, cfg["suffix"]) if skip_existing else None
+            if existing:
+                progress.log_event(
+                    name, cfg["label"], "skipped_existing", None,
+                    appid=appid, image=os.path.basename(existing),
+                )
                 stats["skipped_existing"] += 1
                 continue
 
             assets = fetch_assets(session, api_key, game_id, asset_key, style)
             chosen, source = select_best(assets, preferred_lower)
             if not chosen:
-                progress.log_event(name, cfg["label"], "no_asset", None)
+                progress.log_event(name, cfg["label"], "no_asset", None, appid=appid)
                 continue
 
             url = chosen.get("url")
             if not url:
-                progress.log_event(name, cfg["label"], "no_asset", None)
+                progress.log_event(name, cfg["label"], "no_asset", None, appid=appid)
                 continue
 
             ext = os.path.splitext(url.split("?")[0])[1] or ".png"
@@ -210,12 +239,15 @@ def run_download(games, api_key, preferred_authors, asset_type_keys, style,
             try:
                 _download_binary(session, url, dest_path)
             except Exception:
-                progress.log_event(name, cfg["label"], "error", None)
+                progress.log_event(name, cfg["label"], "error", None, appid=appid)
                 stats["errors"] += 1
                 continue
 
             author_name = (chosen.get("author") or {}).get("name")
-            progress.log_event(name, cfg["label"], source, author_name)
+            progress.log_event(
+                name, cfg["label"], source, author_name,
+                appid=appid, image=os.path.basename(dest_path),
+            )
             if source == "preferred":
                 stats["preferred"] += 1
             else:
