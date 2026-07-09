@@ -1,0 +1,6 @@
+# Runtime dependencies
+Flask>=3.0,<4.0
+requests>=2.31,<3.0
+
+# Dev / test dependencies
+pytest>=7.4,<9.0

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SteamGridDB Homogenizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>SteamGridDB Homogenizer</h1>
+    <p class="subtitle">Descarga en bloque el arte de tu biblioteca de Steam, respetando tus autores preferidos.</p>
+  </header>
+
+  <main class="container">
+
+    <section class="card">
+      <h2>1. API key de SteamGridDB</h2>
+      <p class="hint">
+        Consíguela en
+        <a href="https://www.steamgriddb.com/profile/preferences/api" target="_blank" rel="noopener">steamgriddb.com/profile/preferences/api</a>.
+        Se guarda solo en el <strong>localStorage de tu navegador</strong> y se envía a este servidor local en cada
+        petición; nunca se escribe en disco ni se registra en ningún log del backend.
+      </p>
+      <div class="row">
+        <input type="password" id="api-key" placeholder="Pega aquí tu API key" autocomplete="off" />
+        <button id="validate-key-btn" class="btn">Validar</button>
+      </div>
+      <p id="key-status" class="status"></p>
+    </section>
+
+    <section class="card">
+      <h2>2. Biblioteca de Steam</h2>
+      <p class="hint">Se busca automáticamente en las rutas típicas de Windows/Linux/Mac. Si no encuentra nada, indica la ruta manualmente (carpeta Steam o steamapps).</p>
+      <div class="row">
+        <input type="text" id="manual-path" placeholder="Ruta manual opcional (p.ej. /home/usuario/.steam/steam)" />
+        <button id="detect-btn" class="btn">Detectar biblioteca</button>
+      </div>
+      <p id="detect-status" class="status"></p>
+      <p id="games-preview" class="games-preview"></p>
+    </section>
+
+    <section class="card">
+      <h2>3. Autores preferidos (orden de prioridad)</h2>
+      <p class="hint">
+        Escribe el nombre de usuario tal como aparece en steamgriddb.com y pulsa "Añadir". Arrastra para reordenar:
+        el primero de la lista se prueba primero para cada juego. Si ninguno tiene nada para un juego, se usa el
+        asset con mejor puntuación entre todos los disponibles (fallback), así ningún juego se queda sin portada.
+        Para inspirarte, la colección curada por la comunidad
+        <a href="https://www.steamgriddb.com/collection/3505" target="_blank" rel="noopener">"Best Artists"</a>
+        es un buen punto de partida (no es un ranking oficial de la API, que no expone tal cosa).
+      </p>
+      <div class="row">
+        <input type="text" id="author-input" placeholder="Nombre de usuario en SteamGridDB" />
+        <button id="add-author-btn" class="btn">Añadir</button>
+      </div>
+      <ul id="author-list" class="author-list"></ul>
+    </section>
+
+    <section class="card">
+      <h2>4. Opciones de descarga</h2>
+      <div class="asset-types">
+        <label><input type="checkbox" class="asset-type" value="grid_vertical" checked /> Grid vertical (600x900)</label>
+        <label><input type="checkbox" class="asset-type" value="grid_horizontal" checked /> Grid horizontal (460x215)</label>
+        <label><input type="checkbox" class="asset-type" value="hero" checked /> Hero (1920x620)</label>
+        <label><input type="checkbox" class="asset-type" value="logo" checked /> Logo</label>
+        <label><input type="checkbox" class="asset-type" value="icon" checked /> Icono</label>
+      </div>
+      <div class="row">
+        <label for="style-select">Estilo de grids (opcional):</label>
+        <select id="style-select">
+          <option value="">Sin filtro</option>
+          <option value="alternate">alternate</option>
+          <option value="blurred">blurred</option>
+          <option value="white_logo">white_logo</option>
+          <option value="material">material</option>
+          <option value="no_logo">no_logo</option>
+        </select>
+      </div>
+      <label class="checkbox-row">
+        <input type="checkbox" id="skip-existing" checked />
+        No volver a descargar si el archivo ya existe
+      </label>
+    </section>
+
+    <section class="card">
+      <h2>5. Generar carpeta</h2>
+      <div class="row">
+        <button id="start-btn" class="btn btn-primary" disabled>Generar carpeta</button>
+        <button id="cancel-btn" class="btn btn-danger" hidden>Cancelar</button>
+      </div>
+
+      <div id="progress-section" class="progress-section" hidden>
+        <div class="progress-bar"><div id="progress-bar-fill" class="progress-bar-fill"></div></div>
+        <p id="progress-text" class="progress-text"></p>
+        <p id="current-game" class="current-game"></p>
+        <ul id="log-list" class="log-list"></ul>
+      </div>
+
+      <div id="summary-box" class="summary-box" hidden></div>
+
+      <p class="hint">
+        Carpeta de salida: <code id="output-path">grid_output/</code><br />
+        Cuando termine, copia esa carpeta a <code>userdata/&lt;steamid3&gt;/config/grid/</code> en cada dispositivo
+        (este PC, la Steam Deck, etc.) y reinicia Steam. Tu steamid3 puedes verlo en la carpeta
+        <code>userdata/</code> de tu instalación de Steam, o con herramientas como
+        <a href="https://www.steamidfinder.com/" target="_blank" rel="noopener">steamidfinder.com</a>.
+      </p>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>Código abierto (MIT). No afiliado con Valve ni con SteamGridDB.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

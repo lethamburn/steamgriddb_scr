@@ -1,0 +1,10 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+grid_output/
+.env
+.vscode/
+.idea/
+.DS_Store
